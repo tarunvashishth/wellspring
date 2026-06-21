@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import { ZodError } from 'zod';
 import pinoHttp from 'pino-http';
 import { logger } from './lib/logger';
@@ -13,6 +14,12 @@ import uploadsRouter from './uploads/uploads.router';
 import auditRouter from './audit/audit.router';
 
 const app = express();
+
+// CORS — allow frontend dev server and any configured origin
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ?? 'http://localhost:4000',
+  credentials: true,
+}));
 
 // Request logging
 app.use(pinoHttp({ logger }));

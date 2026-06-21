@@ -22,9 +22,10 @@ export async function withTenant<T>(
 
   return prisma.$transaction(
     async (tx) => {
-      // SET LOCAL doesn't support $1 params or ::uuid casts. Use set_config() which
-      // accepts a plain string value; the RLS function reads it back and casts to uuid.
-      // tenantId is validated against UUID_RE above so interpolation is safe.
+      // Switch to app_user (no BYPASSRLS) so RLS policies are enforced.
+      // wellspring_owner has been granted app_user in the DB setup.
+      // tenantId is UUID-validated above; set_config value is transaction-local.
+      await tx.$executeRawUnsafe(`SET LOCAL ROLE app_user`);
       await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant', '${tenantId}', true)`);
       return fn(tx);
     },

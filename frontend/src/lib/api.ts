@@ -62,9 +62,9 @@ export const programs = {
 // Sessions
 export const sessions = {
   list: (programId: string) => request<Session[]>(`/programs/${programId}/sessions`),
-  create: (programId: string, data: { title: string; description?: string; durationSeconds: number }) =>
+  create: (programId: string, data: { title: string; description?: string; instructorName?: string; tags?: string[]; durationSeconds: number }) =>
     request<Session>(`/programs/${programId}/sessions`, { method: 'POST', body: JSON.stringify(data) }),
-  update: (programId: string, id: string, data: Partial<{ title: string; durationSeconds: number }>) =>
+  update: (programId: string, id: string, data: Partial<{ title: string; description: string; instructorName: string; tags: string[]; durationSeconds: number }>) =>
     request<Session>(`/programs/${programId}/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (programId: string, id: string) =>
     request(`/programs/${programId}/sessions/${id}`, { method: 'DELETE' }),
@@ -119,6 +119,8 @@ export interface Session {
   programId: string;
   title: string;
   description?: string;
+  instructorName?: string;
+  tags: string[];
   durationSeconds: number;
   position: number;
   mediaKey?: string;

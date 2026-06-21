@@ -22,6 +22,8 @@ const durationSchema = z
 const createSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
+  instructorName: z.string().max(255).optional(),
+  tags: z.array(z.string().max(100)).max(20).optional(),
   durationSeconds: z.union([durationSchema, z.number().int().min(1).max(86_400)]),
 });
 
@@ -38,7 +40,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = createSchema.parse(req.body);
-    res.status(201).json(await createSession(req.params.programId, data as { title: string; description?: string; durationSeconds: number }));
+    res.status(201).json(await createSession(req.params.programId, data));
   } catch (err) {
     next(err);
   }
@@ -55,7 +57,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = updateSchema.parse(req.body);
-    res.json(await updateSession(req.params.id, data as { title?: string; description?: string; durationSeconds?: number }));
+    res.json(await updateSession(req.params.id, data));
   } catch (err) {
     next(err);
   }

@@ -19,6 +19,10 @@ class ConcurrentImportError extends Error {
 const rowSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
+  instructor_name: z.string().max(255).optional(),
+  tags: z.string().optional().transform((v) =>
+    v ? v.split(',').map((t) => t.trim()).filter(Boolean) : []
+  ),
   duration_seconds: z
     .string()
     .regex(/^\d+$/, 'Must be a positive integer')
@@ -159,6 +163,8 @@ export async function startImport(
           creatorId: tenantId,
           title: r.data!.title,
           description: r.data!.description,
+          instructorName: r.data!.instructor_name,
+          tags: r.data!.tags ?? [],
           durationSeconds: r.data!.duration_seconds,
           position: startPos + i,
           importKey: r.importKey,

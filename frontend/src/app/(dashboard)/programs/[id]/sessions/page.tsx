@@ -6,12 +6,18 @@ import Link from 'next/link';
 import { programs as programsApi, sessions as sessionsApi, clearToken, Session } from '@/lib/api';
 import SessionList from '@/components/SessionList';
 
+type EditState = {
+  id: string; title: string; description: string;
+  instructorName: string; tags: string; durationSeconds: string;
+} | null;
+
 export default function SessionsPage() {
   const { id: programId } = useParams<{ id: string }>();
   const router = useRouter();
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', durationSeconds: '' });
+  const [form, setForm] = useState({ title: '', description: '', instructorName: '', tags: '', durationSeconds: '' });
+  const [editing, setEditing] = useState<EditState>(null);
 
   const { data: program } = useQuery({
     queryKey: ['program', programId],
@@ -24,12 +30,21 @@ export default function SessionsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: { title: string; description: string; durationSeconds: number }) =>
+    mutationFn: (d: { title: string; description: string; instructorName: string; tags: string[]; durationSeconds: number }) =>
       sessionsApi.create(programId, d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions', programId] });
       setShowCreate(false);
-      setForm({ title: '', description: '', durationSeconds: '' });
+      setForm({ title: '', description: '', instructorName: '', tags: '', durationSeconds: '' });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...d }: { id: string; title: string; description: string; instructorName: string; tags: string[]; durationSeconds: number }) =>
+      sessionsApi.update(programId, id, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions', programId] });
+      setEditing(null);
     },
   });
 
@@ -45,6 +60,17 @@ export default function SessionsPage() {
     },
   });
 
+  function startEdit(s: Session) {
+    setEditing({
+      id: s.id,
+      title: s.title,
+      description: s.description ?? '',
+      instructorName: (s as Session & { instructorName?: string }).instructorName ?? '',
+      tags: ((s as Session & { tags?: string[] }).tags ?? []).join(', '),
+      durationSeconds: String(s.durationSeconds),
+    });
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-3">
@@ -54,6 +80,9 @@ export default function SessionsPage() {
         <span className="text-gray-300">/</span>
         <span className="text-sm font-medium text-gray-900">{program?.title ?? '…'}</span>
         <span className="ml-auto" />
+        <Link href={`/programs/${programId}/import`} className="text-sm text-gray-500 hover:text-gray-700">
+          Import CSV
+        </Link>
         <Link href="/audit" className="text-sm text-gray-500 hover:text-gray-700">
           Audit Log
         </Link>
@@ -85,6 +114,8 @@ export default function SessionsPage() {
                 createMutation.mutate({
                   title: form.title,
                   description: form.description,
+                  instructorName: form.instructorName,
+                  tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
                   durationSeconds: parseInt(form.durationSeconds, 10),
                 });
               }}
@@ -101,6 +132,18 @@ export default function SessionsPage() {
                 placeholder="Description (optional)"
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <input
+                placeholder="Instructor name (optional)"
+                value={form.instructorName}
+                onChange={(e) => setForm((f) => ({ ...f, instructorName: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <input
+                placeholder="Tags (comma-separated)"
+                value={form.tags}
+                onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
               <input
@@ -136,6 +179,79 @@ export default function SessionsPage() {
           </div>
         )}
 
+        {editing && (
+          <div className="bg-white rounded-xl border p-6 mb-6 shadow-sm">
+            <h2 className="text-base font-medium text-gray-900 mb-4">Edit session</h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                updateMutation.mutate({
+                  id: editing.id,
+                  title: editing.title,
+                  description: editing.description,
+                  instructorName: editing.instructorName,
+                  tags: editing.tags.split(',').map((t) => t.trim()).filter(Boolean),
+                  durationSeconds: parseInt(editing.durationSeconds, 10),
+                });
+              }}
+              className="space-y-3"
+            >
+              <input
+                required
+                value={editing.title}
+                onChange={(e) => setEditing((f) => f && ({ ...f, title: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <input
+                placeholder="Description (optional)"
+                value={editing.description}
+                onChange={(e) => setEditing((f) => f && ({ ...f, description: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <input
+                placeholder="Instructor name (optional)"
+                value={editing.instructorName}
+                onChange={(e) => setEditing((f) => f && ({ ...f, instructorName: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <input
+                placeholder="Tags (comma-separated)"
+                value={editing.tags}
+                onChange={(e) => setEditing((f) => f && ({ ...f, tags: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <input
+                required
+                type="number"
+                min={1}
+                max={86400}
+                value={editing.durationSeconds}
+                onChange={(e) => setEditing((f) => f && ({ ...f, durationSeconds: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              {updateMutation.error && (
+                <p className="text-sm text-red-600">{(updateMutation.error as Error).message}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={updateMutation.isPending}
+                  className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
+                >
+                  {updateMutation.isPending ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(null)}
+                  className="text-sm text-gray-500 px-4 py-2 hover:text-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="space-y-2">
             {[...Array(4)].map((_, i) => (
@@ -147,6 +263,7 @@ export default function SessionsPage() {
             sessions={sessionData ?? []}
             onReorder={(ids) => reorderMutation.mutateAsync(ids)}
             onDelete={(id) => deleteMutation.mutate(id)}
+            onEdit={(s) => startEdit(s)}
             onUpload={(sessionId) => router.push(`/programs/${programId}/upload?session=${sessionId}`)}
           />
         )}

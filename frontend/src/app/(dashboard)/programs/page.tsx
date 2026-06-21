@@ -5,11 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { programs as programsApi, clearToken, Program } from '@/lib/api';
 
+type EditState = { id: string; title: string; description: string; tags: string } | null;
+
 export default function ProgramsPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', tags: '' });
+  const [editing, setEditing] = useState<EditState>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['programs'],
@@ -26,6 +29,15 @@ export default function ProgramsPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...d }: { id: string; title: string; description: string; tags: string[] }) =>
+      programsApi.update(id, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['programs'] });
+      setEditing(null);
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => programsApi.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
@@ -34,6 +46,10 @@ export default function ProgramsPage() {
   function handleLogout() {
     clearToken();
     router.push('/login');
+  }
+
+  function startEdit(p: Program) {
+    setEditing({ id: p.id, title: p.title, description: p.description ?? '', tags: p.tags.join(', ') });
   }
 
   if (error) {
@@ -78,10 +94,7 @@ export default function ProgramsPage() {
                 createMutation.mutate({
                   title: form.title,
                   description: form.description,
-                  tags: form.tags
-                    .split(',')
-                    .map((t) => t.trim())
-                    .filter(Boolean),
+                  tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
                 });
               }}
               className="space-y-3"
@@ -141,43 +154,110 @@ export default function ProgramsPage() {
           </p>
         ) : (
           <div className="space-y-3">
-            {data?.map((p: Program) => (
-              <div
-                key={p.id}
-                className="bg-white rounded-xl border p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div>
-                  <Link
-                    href={`/programs/${p.id}/sessions`}
-                    className="font-medium text-gray-900 hover:text-teal-600"
+            {data?.map((p: Program) =>
+              editing?.id === p.id ? (
+                <div key={p.id} className="bg-white rounded-xl border p-5 shadow-sm">
+                  <h2 className="text-sm font-medium text-gray-700 mb-3">Edit program</h2>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      updateMutation.mutate({
+                        id: editing.id,
+                        title: editing.title,
+                        description: editing.description,
+                        tags: editing.tags.split(',').map((t) => t.trim()).filter(Boolean),
+                      });
+                    }}
+                    className="space-y-3"
                   >
-                    {p.title}
-                  </Link>
-                  {p.description && (
-                    <p className="text-sm text-gray-400 mt-0.5 line-clamp-1">{p.description}</p>
-                  )}
-                  {p.tags.length > 0 && (
-                    <div className="flex gap-1 mt-1">
-                      {p.tags.map((t) => (
-                        <span
-                          key={t}
-                          className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full"
-                        >
-                          {t}
-                        </span>
-                      ))}
+                    <input
+                      required
+                      value={editing.title}
+                      onChange={(e) => setEditing((f) => f && ({ ...f, title: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                    <textarea
+                      value={editing.description}
+                      onChange={(e) => setEditing((f) => f && ({ ...f, description: e.target.value }))}
+                      rows={2}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                    />
+                    <input
+                      placeholder="Tags (comma-separated)"
+                      value={editing.tags}
+                      onChange={(e) => setEditing((f) => f && ({ ...f, tags: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                    {updateMutation.error && (
+                      <p className="text-sm text-red-600">{(updateMutation.error as Error).message}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={updateMutation.isPending}
+                        className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
+                      >
+                        {updateMutation.isPending ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(null)}
+                        className="text-sm text-gray-500 px-4 py-2 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
                     </div>
-                  )}
+                  </form>
                 </div>
-                <button
-                  onClick={() => deleteMutation.mutate(p.id)}
-                  disabled={deleteMutation.isPending}
-                  className="text-sm text-red-400 hover:text-red-600 ml-4"
+              ) : (
+                <div
+                  key={p.id}
+                  className="bg-white rounded-xl border p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow"
                 >
-                  Delete
-                </button>
-              </div>
-            ))}
+                  <div>
+                    <Link
+                      href={`/programs/${p.id}/sessions`}
+                      className="font-medium text-gray-900 hover:text-teal-600"
+                    >
+                      {p.title}
+                    </Link>
+                    {p.description && (
+                      <p className="text-sm text-gray-400 mt-0.5 line-clamp-1">{p.description}</p>
+                    )}
+                    {p.tags.length > 0 && (
+                      <div className="flex gap-1 mt-1">
+                        {p.tags.map((t) => (
+                          <span key={t} className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 ml-4">
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="text-sm text-gray-400 hover:text-gray-700"
+                    >
+                      Edit
+                    </button>
+                    <Link
+                      href={`/programs/${p.id}/import`}
+                      className="text-sm text-gray-400 hover:text-gray-700"
+                    >
+                      Import CSV
+                    </Link>
+                    <button
+                      onClick={() => deleteMutation.mutate(p.id)}
+                      disabled={deleteMutation.isPending}
+                      className="text-sm text-red-400 hover:text-red-600"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
           </div>
         )}
       </main>

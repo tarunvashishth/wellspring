@@ -1,5 +1,7 @@
 # Wellspring
 
+> **Loom Walkthrough:** [https://www.loom.com/share/TODO](#) ← _record and replace this link before submitting_
+
 Multi-tenant content management platform for wellness creators. Built for the Breakthrough take-home assessment.
 
 ---

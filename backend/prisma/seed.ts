@@ -54,11 +54,15 @@ async function main() {
     console.log(`  Created ${programs.length} programs for ${creator.displayName}`);
 
     for (const program of programs) {
+      const sessionTitles = ['Warm Up', 'Foundation', 'Build', 'Flow', 'Power', 'Core', 'Stretch', 'Balance', 'Restore', 'Cool Down'];
+      const sessionTagsList = [['warmup'],['beginner'],['intermediate'],['flow'],['strength'],['core'],['flexibility'],['balance'],['recovery'],['cooldown']];
       const sessionData = Array.from({ length: 10 }, (_, i) => ({
         programId: program.id,
         creatorId: creator.id,
-        title: `Session ${i + 1}: ${['Warm Up', 'Foundation', 'Build', 'Flow', 'Power', 'Core', 'Stretch', 'Balance', 'Restore', 'Cool Down'][i]}`,
+        title: `Session ${i + 1}: ${sessionTitles[i]}`,
         description: `Week ${Math.floor(i / 2) + 1} session ${(i % 2) + 1}`,
+        instructorName: creator.displayName,
+        tags: sessionTagsList[i],
         durationSeconds: 600 + i * 120,
         position: i + 1,
         importKey: `seed-${program.id}-${i}`,

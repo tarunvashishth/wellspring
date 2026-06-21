@@ -23,7 +23,7 @@ export async function getSession(id: string) {
 
 export async function createSession(
   programId: string,
-  data: { title: string; description?: string; durationSeconds: number },
+  data: { title: string; description?: string; instructorName?: string; tags?: string[]; durationSeconds: number },
 ) {
   const { tenantId } = getContext();
   return withTenant(async (tx) => {
@@ -60,7 +60,7 @@ export async function createSession(
 
 export async function updateSession(
   id: string,
-  data: { title?: string; description?: string; durationSeconds?: number },
+  data: { title?: string; description?: string; instructorName?: string; tags?: string[]; durationSeconds?: number },
 ) {
   const { tenantId } = getContext();
   return withTenant(async (tx) => {

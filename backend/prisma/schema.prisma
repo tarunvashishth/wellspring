@@ -52,6 +52,7 @@ model Program {
   sessions    Session[]
   bulkImports BulkImport[]
 
+  @@unique([id, creatorId])
   @@map("programs")
 }
 
@@ -61,6 +62,8 @@ model Session {
   creatorId       String      @map("creator_id") @db.Uuid
   title           String      @db.VarChar(255)
   description     String?     @db.Text
+  instructorName  String?     @map("instructor_name") @db.VarChar(255)
+  tags            String[]
   durationSeconds Int         @map("duration_seconds")
   position        Int
   importKey       String?     @map("import_key") @db.VarChar(255)

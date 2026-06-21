@@ -91,3 +91,7 @@ ALTER TABLE sessions
 ALTER TABLE programs
   ADD CONSTRAINT IF NOT EXISTS programs_id_creator_id_unique
   UNIQUE (id, creator_id);
+
+-- Migration: add instructor_name and tags to sessions
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS instructor_name VARCHAR(255);
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';

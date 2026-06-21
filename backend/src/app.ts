@@ -4,6 +4,7 @@ import { ZodError } from 'zod';
 import pinoHttp from 'pino-http';
 import { logger } from './lib/logger';
 import { AppError } from './lib/errors';
+import { getPartialContext } from './lib/context';
 
 import healthRouter from './health/health.router';
 import authRouter from './auth/auth.router';
@@ -21,8 +22,17 @@ app.use(cors({
   credentials: true,
 }));
 
-// Request logging
-app.use(pinoHttp({ logger }));
+// Request logging — inject tenant_id and request_id from AsyncLocalStorage into every log line
+app.use(pinoHttp({
+  logger,
+  customProps: (_req, _res) => {
+    const ctx = getPartialContext();
+    return {
+      tenant_id: ctx?.tenantId ?? null,
+      request_id: ctx?.requestId ?? null,
+    };
+  },
+}));
 
 // Body parsing — scoped to JSON routes only.
 // express.json is NOT applied globally so that multer-handled multipart

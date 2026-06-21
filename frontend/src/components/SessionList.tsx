@@ -23,6 +23,7 @@ interface Props {
   sessions: Session[];
   onReorder: (orderedIds: string[]) => Promise<void>;
   onDelete: (id: string) => void;
+  onEdit: (session: Session) => void;
   onUpload: (sessionId: string) => void;
 }
 
@@ -46,32 +47,52 @@ function MediaBadge({ status }: { status: Session['mediaStatus'] }) {
   );
 }
 
-function SessionCard({ session, isDragging = false, onDelete, onUpload }: {
+function SessionCard({ session, isDragging = false, onDelete, onEdit, onUpload }: {
   session: Session;
   isDragging?: boolean;
   onDelete: (id: string) => void;
+  onEdit: (s: Session) => void;
   onUpload: (id: string) => void;
 }) {
+  const ext = session as Session & { instructorName?: string; tags?: string[] };
   return (
     <div
       className={`bg-white rounded-xl border p-4 flex items-center gap-3 shadow-sm ${
         isDragging ? 'shadow-lg opacity-80' : ''
       }`}
     >
-      <span className="text-gray-300 text-lg select-none">⠿</span>
+      <span className="text-gray-300 text-lg select-none cursor-grab">⠿</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 truncate">{session.title}</p>
-        <p className="text-xs text-gray-400">{Math.floor(session.durationSeconds / 60)}m</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-xs text-gray-400">{Math.floor(session.durationSeconds / 60)}m</p>
+          {ext.instructorName && (
+            <p className="text-xs text-gray-400">· {ext.instructorName}</p>
+          )}
+          {ext.tags && ext.tags.length > 0 && (
+            <div className="flex gap-1">
+              {ext.tags.map((t) => (
+                <span key={t} className="text-xs bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded-full">{t}</span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <MediaBadge status={session.mediaStatus} />
-      {session.mediaStatus === 'PENDING' || session.mediaStatus === 'FAILED' ? (
+      {(session.mediaStatus === 'PENDING' || session.mediaStatus === 'FAILED') && (
         <button
           onClick={() => onUpload(session.id)}
           className="text-xs text-teal-600 hover:text-teal-700 font-medium"
         >
           Upload
         </button>
-      ) : null}
+      )}
+      <button
+        onClick={() => onEdit(session)}
+        className="text-xs text-gray-400 hover:text-gray-700"
+      >
+        Edit
+      </button>
       <button
         onClick={() => onDelete(session.id)}
         className="text-xs text-red-400 hover:text-red-600"
@@ -82,9 +103,10 @@ function SessionCard({ session, isDragging = false, onDelete, onUpload }: {
   );
 }
 
-function SortableSession({ session, onDelete, onUpload }: {
+function SortableSession({ session, onDelete, onEdit, onUpload }: {
   session: Session;
   onDelete: (id: string) => void;
+  onEdit: (s: Session) => void;
   onUpload: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -98,12 +120,12 @@ function SortableSession({ session, onDelete, onUpload }: {
       {...attributes}
       {...listeners}
     >
-      <SessionCard session={session} onDelete={onDelete} onUpload={onUpload} />
+      <SessionCard session={session} onDelete={onDelete} onEdit={onEdit} onUpload={onUpload} />
     </div>
   );
 }
 
-export default function SessionList({ sessions: initialSessions, onReorder, onDelete, onUpload }: Props) {
+export default function SessionList({ sessions: initialSessions, onReorder, onDelete, onEdit, onUpload }: Props) {
   const [sessions, setSessions] = useState(initialSessions);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -158,7 +180,7 @@ export default function SessionList({ sessions: initialSessions, onReorder, onDe
         <SortableContext items={sessions.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
             {sessions.map((s) => (
-              <SortableSession key={s.id} session={s} onDelete={onDelete} onUpload={onUpload} />
+              <SortableSession key={s.id} session={s} onDelete={onDelete} onEdit={onEdit} onUpload={onUpload} />
             ))}
           </div>
         </SortableContext>
@@ -168,6 +190,7 @@ export default function SessionList({ sessions: initialSessions, onReorder, onDe
               session={activeSession}
               isDragging
               onDelete={() => {}}
+              onEdit={() => {}}
               onUpload={() => {}}
             />
           ) : null}

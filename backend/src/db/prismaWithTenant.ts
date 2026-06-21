@@ -22,7 +22,9 @@ export async function withTenant<T>(
 
   return prisma.$transaction(
     async (tx) => {
-      await tx.$executeRaw`SET LOCAL app.current_tenant = ${tenantId}::uuid`;
+      // SET LOCAL doesn't support parameter binding ($1) in PostgreSQL — must be a literal.
+      // tenantId is validated against UUID_RE above, so direct interpolation is safe.
+      await tx.$executeRawUnsafe(`SET LOCAL app.current_tenant = '${tenantId}'::uuid`);
       return fn(tx);
     },
     {

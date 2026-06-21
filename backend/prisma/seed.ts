@@ -24,30 +24,29 @@ async function main() {
   console.log(`Created creators: ${alice.email}, ${bob.email}`);
 
   for (const creator of [alice, bob]) {
+    async function findOrCreateProgram(data: { creatorId: string; title: string; description: string; tags: string[] }) {
+      const existing = await prisma.program.findFirst({ where: { creatorId: data.creatorId, title: data.title } });
+      return existing ?? await prisma.program.create({ data });
+    }
+
     const programs = await Promise.all([
-      prisma.program.create({
-        data: {
-          creatorId: creator.id,
-          title: `${creator.displayName}'s Morning Flow`,
-          description: 'Start your day with intention.',
-          tags: ['morning', 'mindfulness'],
-        },
+      findOrCreateProgram({
+        creatorId: creator.id,
+        title: `${creator.displayName}'s Morning Flow`,
+        description: 'Start your day with intention.',
+        tags: ['morning', 'mindfulness'],
       }),
-      prisma.program.create({
-        data: {
-          creatorId: creator.id,
-          title: `${creator.displayName}'s Strength Series`,
-          description: 'Build functional strength over 8 weeks.',
-          tags: ['strength', 'fitness'],
-        },
+      findOrCreateProgram({
+        creatorId: creator.id,
+        title: `${creator.displayName}'s Strength Series`,
+        description: 'Build functional strength over 8 weeks.',
+        tags: ['strength', 'fitness'],
       }),
-      prisma.program.create({
-        data: {
-          creatorId: creator.id,
-          title: `${creator.displayName}'s Recovery Reset`,
-          description: 'Gentle movement for active recovery.',
-          tags: ['recovery', 'yoga'],
-        },
+      findOrCreateProgram({
+        creatorId: creator.id,
+        title: `${creator.displayName}'s Recovery Reset`,
+        description: 'Gentle movement for active recovery.',
+        tags: ['recovery', 'yoga'],
       }),
     ]);
 

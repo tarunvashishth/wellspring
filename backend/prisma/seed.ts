@@ -68,7 +68,13 @@ async function main() {
         importKey: `seed-${program.id}-${i}`,
       }));
 
-      await prisma.session.createMany({ data: sessionData, skipDuplicates: true });
+      for (const s of sessionData) {
+        await prisma.session.upsert({
+          where: { programId_importKey: { programId: s.programId, importKey: s.importKey! } },
+          update: {},
+          create: s,
+        });
+      }
     }
 
     console.log(`  Created 10 sessions per program for ${creator.displayName}`);

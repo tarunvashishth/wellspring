@@ -47,9 +47,10 @@ function MediaBadge({ status }: { status: Session['mediaStatus'] }) {
   );
 }
 
-function SessionCard({ session, isDragging = false, onDelete, onEdit, onUpload }: {
+function SessionCard({ session, isDragging = false, dragListeners, onDelete, onEdit, onUpload }: {
   session: Session;
   isDragging?: boolean;
+  dragListeners?: Record<string, unknown>;
   onDelete: (id: string) => void;
   onEdit: (s: Session) => void;
   onUpload: (id: string) => void;
@@ -61,7 +62,7 @@ function SessionCard({ session, isDragging = false, onDelete, onEdit, onUpload }
         isDragging ? 'shadow-lg opacity-80' : ''
       }`}
     >
-      <span className="text-gray-300 text-lg select-none cursor-grab">⠿</span>
+      <span className="text-gray-300 text-lg select-none cursor-grab" {...(dragListeners ?? {})}>⠿</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 truncate">{session.title}</p>
         <div className="flex items-center gap-2 flex-wrap">
@@ -118,9 +119,8 @@ function SortableSession({ session, onDelete, onEdit, onUpload }: {
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={isDragging ? 'opacity-40' : ''}
       {...attributes}
-      {...listeners}
     >
-      <SessionCard session={session} onDelete={onDelete} onEdit={onEdit} onUpload={onUpload} />
+      <SessionCard session={session} dragListeners={listeners as Record<string, unknown>} onDelete={onDelete} onEdit={onEdit} onUpload={onUpload} />
     </div>
   );
 }

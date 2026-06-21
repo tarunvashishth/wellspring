@@ -71,6 +71,14 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO app_user;
 
+-- Allow the application login role (wellspring_owner) to SET LOCAL ROLE app_user
+-- so withTenant() can switch to a role without BYPASSRLS, making RLS policies effective.
+-- Run as superuser; the GRANT persists and does not require superuser at query time.
+DO $$ BEGIN
+  GRANT app_user TO wellspring_owner;
+EXCEPTION WHEN others THEN NULL;  -- idempotent: ignore if already granted or role missing
+END $$;
+
 -- Deferred unique constraint for session position (allows safe reorder within transaction)
 ALTER TABLE sessions
   DROP CONSTRAINT IF EXISTS sessions_program_id_position_key;

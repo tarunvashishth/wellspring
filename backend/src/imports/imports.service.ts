@@ -63,13 +63,11 @@ function parseCSV(buffer: Buffer): ParsedRow[] {
 }
 
 async function resolveStartPosition(tx: TenantTx, programId: string): Promise<number> {
-  // Lock program row to serialize concurrent imports + reorders
+  // Lock program row to serialize concurrent imports + reorders.
+  // FOR UPDATE cannot be combined with aggregates, so we lock first then aggregate.
+  await tx.$executeRaw`SELECT id FROM programs WHERE id = ${programId}::uuid FOR UPDATE`;
   const rows = await tx.$queryRaw<{ max_pos: number | null }[]>`
-    SELECT MAX(s.position) AS max_pos
-    FROM programs p
-    LEFT JOIN sessions s ON s.program_id = p.id
-    WHERE p.id = ${programId}::uuid
-    FOR UPDATE OF p
+    SELECT MAX(position) AS max_pos FROM sessions WHERE program_id = ${programId}::uuid
   `;
   return (rows[0]?.max_pos ?? 0) + 1;
 }
@@ -228,6 +226,9 @@ export async function startImport(
     successRows,
     failedRows,
     totalRows: rows.length,
+    errors: invalidRows.flatMap((r) =>
+      r.errors.map((e) => ({ rowNumber: r.rowNumber, field: e.field, message: e.message, rawData: null }))
+    ),
     idempotent: false,
   };
 }
@@ -240,6 +241,10 @@ export async function getImport(importId: string) {
       include: { errors: { orderBy: { rowNumber: 'asc' } } },
     });
     if (!imp) throw new AppError('Import not found', 404);
-    return imp;
+    // BigInt ids are not JSON-serializable; convert to string
+    return {
+      ...imp,
+      errors: imp.errors.map((e) => ({ ...e, id: e.id.toString() })),
+    };
   });
 }

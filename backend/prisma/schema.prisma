@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Creator {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  displayName  String   @map("display_name") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  programs            Program[]
+  sessions            Session[]
+  bulkImports         BulkImport[]
+  importErrors        ImportError[]
+  auditLogs           AuditLog[]
+  media               Media[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@map("creators")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  creatorId String    @map("creator_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model Program {
+  id          String   @id @default(uuid()) @db.Uuid
+  creatorId   String   @map("creator_id") @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  tags        String[]
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  creator     Creator      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  sessions    Session[]
+  bulkImports BulkImport[]
+
+  @@map("programs")
+}
+
+model Session {
+  id              String      @id @default(uuid()) @db.Uuid
+  programId       String      @map("program_id") @db.Uuid
+  creatorId       String      @map("creator_id") @db.Uuid
+  title           String      @db.VarChar(255)
+  description     String?     @db.Text
+  durationSeconds Int         @map("duration_seconds")
+  position        Int
+  importKey       String?     @map("import_key") @db.VarChar(255)
+  mediaKey        String?     @map("media_key") @db.VarChar(1024)
+  mediaStatus     MediaStatus @default(PENDING) @map("media_status")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  program Program  @relation(fields: [programId, creatorId], references: [id, creatorId], onDelete: Cascade)
+  creator Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  media   Media[]
+
+  @@unique([programId, importKey])
+  @@map("sessions")
+}
+
+enum MediaStatus {
+  PENDING
+  PROCESSING
+  VERIFIED
+  FAILED
+
+  @@map("media_status")
+}
+
+model Media {
+  id          String      @id @default(uuid()) @db.Uuid
+  sessionId   String      @map("session_id") @db.Uuid
+  creatorId   String      @map("creator_id") @db.Uuid
+  s3Key       String      @unique @map("s3_key") @db.VarChar(1024)
+  contentType String      @map("content_type") @db.VarChar(255)
+  sizeBytes   BigInt?     @map("size_bytes")
+  status      MediaStatus @default(PENDING)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("media")
+}
+
+model BulkImport {
+  id             String       @id @default(uuid()) @db.Uuid
+  creatorId      String       @map("creator_id") @db.Uuid
+  programId      String       @map("program_id") @db.Uuid
+  clientImportId String       @unique @map("client_import_id") @db.Uuid
+  status         ImportStatus @default(PENDING)
+  totalRows      Int          @default(0) @map("total_rows")
+  successRows    Int          @default(0) @map("success_rows")
+  failedRows     Int          @default(0) @map("failed_rows")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  creator Creator     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  program Program     @relation(fields: [programId], references: [id], onDelete: Cascade)
+  errors  ImportError[]
+
+  @@map("bulk_imports")
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+
+  @@map("import_status")
+}
+
+model ImportError {
+  id        BigInt   @id @default(autoincrement())
+  importId  String   @map("import_id") @db.Uuid
+  creatorId String   @map("creator_id") @db.Uuid
+  rowNumber Int      @map("row_number")
+  field     String?  @db.VarChar(255)
+  message   String   @db.Text
+  rawData   Json?    @map("raw_data")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  import  BulkImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  creator Creator    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("import_errors")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  creatorId  String   @map("creator_id") @db.Uuid
+  actorId    String   @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  targetType String   @map("target_type") @db.VarChar(100)
+  targetId   String?  @map("target_id") @db.Uuid
+  metadata   Json?
+  severity   String   @default("info") @db.VarChar(20)
+  requestId  String?  @map("request_id") @db.VarChar(100)
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}

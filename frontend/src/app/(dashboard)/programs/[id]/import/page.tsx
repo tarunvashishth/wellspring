@@ -33,6 +33,10 @@ export default function ImportPage() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  // clientImportId is a UUID generated once when the page loads.
+  // It's sent with every import attempt so the backend can detect duplicate submissions
+  // (e.g. user clicks Import twice, or refreshes and re-submits). The backend returns the
+  // original result instead of running the import again. Refresh the page to get a new ID.
   const [clientImportId, setClientImportId] = useState('');
   useEffect(() => { setClientImportId(crypto.randomUUID()); }, []);
   const [loading, setLoading] = useState(false);

@@ -4,18 +4,26 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { uploads } from '@/lib/api';
 
+// Union type for the upload state machine — only these values are allowed.
+// Using a type union instead of booleans makes the UI logic easier to follow:
+// each state maps directly to a distinct UI panel (progress bar, spinner, success, error).
 type UploadState = 'idle' | 'uploading' | 'completing' | 'done' | 'error';
 
 export default function UploadPage() {
+  // programId comes from the URL segment /programs/[id]/upload
   const { id: programId } = useParams<{ id: string }>();
+  // sessionId comes from the query string: /upload?session=<uuid>
+  // The sessions page navigates here with the session ID in the URL.
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session') ?? '';
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<UploadState>('idle');
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState(0);  // 0–100, for the progress bar
   const [errorMsg, setErrorMsg] = useState('');
+  // useRef stores the XHR instance so handleCancel can call .abort() on it.
+  // useRef doesn't trigger a re-render when changed (unlike useState) — right for this use case.
   const xhrRef = useRef<XMLHttpRequest | null>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -35,22 +43,28 @@ export default function UploadPage() {
     setProgress(0);
 
     try {
-      // 1. Get presigned POST URL
+      // Step 1: Ask the backend for a pre-signed S3 URL.
+      // The backend generates a time-limited permission slip (uploadUrl + fields)
+      // that allows the browser to upload directly to S3.
       const { uploadUrl, fields, uploadKey } = await uploads.initiate({
         sessionId,
         contentType: file.type,
         filename: file.name,
       });
 
-      // 2. Upload directly to S3 with XHR for progress tracking
+      // Step 2: Upload the file directly to S3 using XMLHttpRequest (XHR).
+      // We use XHR instead of fetch because XHR has built-in upload progress events
+      // (xhr.upload.onprogress). fetch does not support upload progress natively.
+      // The formData must include all fields from the pre-signed POST (S3 conditions).
       await new Promise<void>((resolve, reject) => {
         const formData = new FormData();
         Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
-        formData.append('file', file);
+        formData.append('file', file); // file must be the LAST field in the form (S3 requirement)
 
         const xhr = new XMLHttpRequest();
-        xhrRef.current = xhr;
+        xhrRef.current = xhr; // store so we can cancel it
 
+        // Progress event fires repeatedly as bytes are sent.
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             setProgress(Math.round((e.loaded / e.total) * 100));
@@ -70,11 +84,13 @@ export default function UploadPage() {
         xhr.send(formData);
       });
 
-      // 3. Notify backend to verify and mark session VERIFIED
+      // Step 3: Tell our backend the upload is done so it can verify the file
+      // (check metadata, read magic bytes) and mark the session as VERIFIED.
       setState('completing');
       await uploads.complete({ sessionId, uploadKey });
       setState('done');
 
+      // Redirect to the sessions page after a short delay so the user can see the success message.
       setTimeout(() => router.push(`/programs/${programId}/sessions`), 1500);
     } catch (err) {
       setState('error');
@@ -82,6 +98,7 @@ export default function UploadPage() {
     }
   }
 
+  // Cancels an in-progress upload. XHR.abort() immediately stops the network transfer.
   function handleCancel() {
     xhrRef.current?.abort();
     setState('idle');

@@ -24,11 +24,14 @@ function AuditContent() {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Filters are stored in the URL query string (?action=program.create&severity=warn) rather
+  // than in React state. This makes the filtered view shareable/bookmarkable and preserves
+  // filters on browser back navigation — no state lost on refresh.
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (value) params.set(key, value);
-    else params.delete(key);
-    router.replace(`${pathname}?${params.toString()}`);
+    else params.delete(key); // remove the param entirely if value is empty (show all)
+    router.replace(`${pathname}?${params.toString()}`); // replace so back button skips filter changes
   }
 
   const filters = {
@@ -38,19 +41,25 @@ function AuditContent() {
     to: searchParams.get('to') ?? '',
   };
 
+  // Strip empty-string filters before passing to the API — backend ignores missing params.
   const queryParams = Object.fromEntries(
     Object.entries(filters).filter(([, v]) => v !== ''),
   );
 
+  // useInfiniteQuery handles cursor-based pagination ("Load more" pattern).
+  // Each page returns { items, nextCursor }. getNextPageParam extracts the cursor for the
+  // next page. When the user clicks "Load more", fetchNextPage() sends the next request.
+  // All pages are accumulated in data.pages; flatMap merges them into a single logs array.
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error } =
     useInfiniteQuery({
-      queryKey: ['audit', queryParams],
+      queryKey: ['audit', queryParams], // changing filters creates a new cache entry = new fetch
       queryFn: ({ pageParam }) =>
         audit.list({ ...queryParams, ...(pageParam ? { cursor: pageParam as string } : {}) }),
       initialPageParam: undefined as string | undefined,
-      getNextPageParam: (last) => last.nextCursor ?? undefined,
+      getNextPageParam: (last) => last.nextCursor ?? undefined, // undefined means no more pages
     });
 
+  // Flatten all fetched pages into one flat array for rendering.
   const logs = data?.pages.flatMap((p) => p.items) ?? [];
 
   if (error) {

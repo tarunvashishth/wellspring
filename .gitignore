@@ -37,3 +37,7 @@ frontend/package-lock.json
 *.tsbuildinfo
 frontend/next-env.d.ts
 frontend/postcss.config.js
+
+
+INTERVIEW_PREP.md
+.gstack/

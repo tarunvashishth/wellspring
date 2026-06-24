@@ -5,20 +5,28 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { programs as programsApi, clearToken, Program } from '@/lib/api';
 
+// Holds the in-progress edit form state. null means no program is currently being edited.
 type EditState = { id: string; title: string; description: string; tags: string } | null;
 
 export default function ProgramsPage() {
   const router = useRouter();
+  // useQueryClient gives access to the shared cache so mutations can trigger refetches.
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', tags: '' });
   const [editing, setEditing] = useState<EditState>(null);
 
+  // useQuery fetches data and caches it under the key ['programs'].
+  // It automatically refetches when the component mounts, and the cache key is used by
+  // invalidateQueries to know which data to refresh after a mutation.
   const { data, isLoading, error } = useQuery({
     queryKey: ['programs'],
     queryFn: programsApi.list,
   });
 
+  // useMutation wraps an API call with loading/error state and an onSuccess callback.
+  // onSuccess: invalidateQueries marks the ['programs'] cache as stale, triggering a refetch
+  // so the list updates immediately after creating/updating/deleting — no manual refresh needed.
   const createMutation = useMutation({
     mutationFn: (d: { title: string; description: string; tags: string[] }) =>
       programsApi.create(d),
@@ -44,14 +52,17 @@ export default function ProgramsPage() {
   });
 
   function handleLogout() {
-    clearToken();
+    clearToken(); // remove token from localStorage
     router.push('/login');
   }
 
+  // Pre-populate the edit form with the program's current values when the Edit button is clicked.
+  // tags is stored as string[] in the DB but displayed as comma-separated text in the input.
   function startEdit(p: Program) {
     setEditing({ id: p.id, title: p.title, description: p.description ?? '', tags: p.tags.join(', ') });
   }
 
+  // If the API returns 401 (token expired or invalid), log the user out and redirect to login.
   if (error) {
     if ((error as { status?: number }).status === 401) {
       clearToken();

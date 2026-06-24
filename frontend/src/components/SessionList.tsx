@@ -125,35 +125,51 @@ function SortableSession({ session, onDelete, onEdit, onUpload }: {
   );
 }
 
+// SessionList implements drag-and-drop reordering using @dnd-kit.
+// Key concepts:
+//  - Optimistic UI: the list reorders instantly on drop, then syncs with the server.
+//    If the server call fails, it rolls back to the previous order.
+//  - DndContext: the root provider that tracks drag state for all sortable items inside it.
+//  - SortableContext: knows the ordered list of IDs and manages each item's position.
+//  - DragOverlay: renders a floating "ghost" card that follows the cursor while dragging.
+//    The actual card in the list becomes semi-transparent (opacity-40) as a placeholder.
 export default function SessionList({ sessions: initialSessions, onReorder, onDelete, onEdit, onUpload }: Props) {
-  const [sessions, setSessions] = useState(initialSessions);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [sessions, setSessions] = useState(initialSessions); // local copy for optimistic updates
+  const [activeId, setActiveId] = useState<string | null>(null); // ID of the card being dragged
+  const [saving, setSaving] = useState(false); // disables interactions while the API call is in flight
+  // prevRef stores the order BEFORE the drag in case we need to roll back.
+  // useRef instead of useState because we don't want a re-render when setting it.
   const prevRef = useRef<Session[]>(initialSessions);
 
+  // PointerSensor with distance:5 means the drag doesn't start until the pointer moves 5px.
+  // This prevents accidental drags when the user just clicks (e.g. to hit Edit or Delete).
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const activeSession = sessions.find((s) => s.id === activeId);
 
   function handleDragStart(e: DragStartEvent) {
-    setActiveId(e.active.id as string);
-    prevRef.current = sessions;
+    setActiveId(e.active.id as string); // track which item is being dragged (for DragOverlay)
+    prevRef.current = sessions; // snapshot the current order for potential rollback
   }
 
   async function handleDragEnd(e: DragEndEvent) {
-    setActiveId(null);
+    setActiveId(null); // hide the DragOverlay
     const { active, over } = e;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) return; // dropped outside list or no movement — do nothing
 
     const oldIdx = sessions.findIndex((s) => s.id === active.id);
     const newIdx = sessions.findIndex((s) => s.id === over.id);
+    // arrayMove is a @dnd-kit utility that moves an element from oldIdx to newIdx in an array.
     const reordered = arrayMove(sessions, oldIdx, newIdx);
 
+    // Optimistic update: show the new order immediately without waiting for the server.
     setSessions(reordered);
     setSaving(true);
     try {
+      // Send the new order to the backend. Backend assigns positions 1, 2, 3... accordingly.
       await onReorder(reordered.map((s) => s.id));
     } catch {
+      // Server rejected the reorder — roll back to the snapshot taken at drag start.
       setSessions(prevRef.current);
     } finally {
       setSaving(false);
